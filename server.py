@@ -1,9 +1,12 @@
 import json
+import os
 from enum import Enum
+from hmac import compare_digest
 
 import pandas as pd
 import yfinance as yf
 from mcp.server.fastmcp import FastMCP
+from starlette.responses import JSONResponse
 
 
 # Define an enum for the type of financial statement
@@ -33,6 +36,9 @@ class RecommendationType(str, Enum):
 # Initialize FastMCP server
 yfinance_server = FastMCP(
     "yfinance",
+    host=os.getenv("HOST", "0.0.0.0"),
+    port=int(os.getenv("PORT", "8000")),
+    streamable_http_path=os.getenv("MCP_PATH", "/mcp"),
     instructions="""
 # Yahoo Finance MCP Server
 
@@ -50,6 +56,53 @@ Available tools:
 - get_recommendations: Get recommendations or upgrades/downgrades for a given ticker symbol from yahoo finance. You can also specify the number of months back to get upgrades/downgrades for, default is 12.
 """,
 )
+
+
+@yfinance_server.custom_route("/health", methods=["GET"], include_in_schema=False)
+async def health_check(request):
+    """Returns Cloud Run health status.
+
+    Args:
+        request: Incoming Starlette request.
+
+    Returns:
+        JSON response showing the service is healthy.
+    """
+    return JSONResponse({"status": "healthy"})
+
+
+class APIKeyMiddleware:
+    """Applies optional x-api-key authentication to HTTP requests.
+
+    Args:
+        app: ASGI app to wrap.
+        api_key: Expected API key. If empty, requests are allowed.
+    """
+
+    def __init__(self, app, api_key: str):
+        self.app = app
+        self.api_key = api_key
+
+    async def __call__(self, scope, receive, send):
+        """Handles an ASGI request.
+
+        Args:
+            scope: ASGI connection scope.
+            receive: ASGI receive callable.
+            send: ASGI send callable.
+        """
+        if self.api_key and scope.get("type") == "http" and scope.get("path") != "/health":
+            headers = {key.decode().lower(): value.decode() for key, value in scope["headers"]}
+            provided_key = headers.get("x-api-key", "")
+            if not compare_digest(provided_key, self.api_key):
+                response = JSONResponse(
+                    {"detail": "Invalid or missing API key"},
+                    status_code=403,
+                )
+                await response(scope, receive, send)
+                return
+
+        await self.app(scope, receive, send)
 
 
 @yfinance_server.tool(
@@ -412,9 +465,26 @@ async def get_recommendations(ticker: str, recommendation_type: str, months_back
 
 
 def main() -> None:
-    # Initialize and run the server
-    print("Starting Yahoo Finance MCP server...")
-    yfinance_server.run(transport="stdio")
+    """Runs the Yahoo Finance MCP server over Streamable HTTP."""
+    print(
+        "Starting Yahoo Finance MCP server on "
+        f"{yfinance_server.settings.host}:{yfinance_server.settings.port}"
+        f"{yfinance_server.settings.streamable_http_path}"
+    )
+
+    app = yfinance_server.streamable_http_app()
+    api_key = os.getenv("API_KEY", "")
+    if api_key:
+        app = APIKeyMiddleware(app, api_key)
+
+    import uvicorn
+
+    uvicorn.run(
+        app,
+        host=yfinance_server.settings.host,
+        port=yfinance_server.settings.port,
+        log_level=yfinance_server.settings.log_level.lower(),
+    )
 
 
 if __name__ == "__main__":
