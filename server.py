@@ -458,6 +458,9 @@ def main() -> None:
     )
 
     app = build_app()
+    if not app.authenticator.configured:
+        # Refuse to start rather than pass /health while answering 503 on every /mcp call.
+        raise SystemExit("caller auth unconfigured: set API_KEY and/or DESCOPE_M2M_PROJECT_ID")
 
     import uvicorn
 

@@ -83,3 +83,10 @@ def test_production_wiring_reads_api_key_and_project(monkeypatch):
     assert app.authenticator.verifier is not None
     assert app.authenticator.verifier.allowed_envs == frozenset({"staging", "prod"})
     assert app.exempt_paths == frozenset({"/health"})
+
+
+def test_main_refuses_to_start_unconfigured(monkeypatch):
+    monkeypatch.delenv("API_KEY", raising=False)
+    monkeypatch.delenv("DESCOPE_M2M_PROJECT_ID", raising=False)
+    with pytest.raises(SystemExit, match="unconfigured"):
+        server.main()
