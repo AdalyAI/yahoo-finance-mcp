@@ -72,3 +72,14 @@ def test_unconfigured_fails_closed(client):
     _APP.authenticator = CallerAuthenticator(None, "")
     assert client.post("/mcp", json=_INIT, headers=_MCP_HEADERS).status_code == 503
     assert client.get("/health").status_code == 200
+
+
+def test_production_wiring_reads_api_key_and_project(monkeypatch):
+    monkeypatch.setenv("API_KEY", "static")
+    monkeypatch.setenv("DESCOPE_M2M_PROJECT_ID", PROJECT_ID)
+    app = server.build_app()
+    assert app.authenticator.static_key == "static"
+    assert app.authenticator.static_header == "x-api-key"
+    assert app.authenticator.verifier is not None
+    assert app.authenticator.verifier.allowed_envs == frozenset({"staging", "prod"})
+    assert app.exempt_paths == frozenset({"/health"})

@@ -18,6 +18,8 @@ RUN export UV_INDEX_ADALY_PYTHON_USERNAME=oauth2accesstoken \
     && uv sync --frozen --no-dev --no-install-project
 
 COPY . .
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev \
+    && .venv/bin/python -c "import adaly_m2m_auth"
 
-CMD ["uv", "run", "server.py"]
+# --frozen --no-sync: never re-lock or install at runtime (that would need the private index's credentials).
+CMD ["uv", "run", "--frozen", "--no-sync", "server.py"]
