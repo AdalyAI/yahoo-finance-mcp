@@ -434,13 +434,17 @@ def build_app(authenticator: CallerAuthenticator | None = None) -> CallerAuthMid
     """Builds the Streamable HTTP app behind caller authentication.
 
     Every route except ``/health`` needs a Descope M2M token (``DESCOPE_M2M_PROJECT_ID``) or the legacy
-    ``x-api-key`` (``API_KEY``). With neither configured, protected routes answer 503.
+    ``x-api-key`` (``API_KEY``). With neither configured, protected routes answer 503. Tokens must be issued for
+    this service: ``K_SERVICE`` on Cloud Run, else ``DESCOPE_M2M_AUDIENCE``.
 
     Args:
         authenticator: Overrides the authenticator built from the environment (tests).
 
     Returns:
         The wrapped ASGI app.
+
+    Raises:
+        ValueError: If ``DESCOPE_M2M_PROJECT_ID`` is set but no audience is.
     """
     return CallerAuthMiddleware(
         yfinance_server.streamable_http_app(),
