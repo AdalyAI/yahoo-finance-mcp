@@ -1,10 +1,10 @@
 import json
 import os
 from enum import Enum
-from hmac import compare_digest
 
 import pandas as pd
 import yfinance as yf
+from adaly_m2m_auth import CallerAuthenticator, CallerAuthMiddleware
 from mcp.server.fastmcp import FastMCP
 from starlette.responses import JSONResponse
 
@@ -69,40 +69,6 @@ async def health_check(request):
         JSON response showing the service is healthy.
     """
     return JSONResponse({"status": "healthy"})
-
-
-class APIKeyMiddleware:
-    """Applies optional x-api-key authentication to HTTP requests.
-
-    Args:
-        app: ASGI app to wrap.
-        api_key: Expected API key. If empty, requests are allowed.
-    """
-
-    def __init__(self, app, api_key: str):
-        self.app = app
-        self.api_key = api_key
-
-    async def __call__(self, scope, receive, send):
-        """Handles an ASGI request.
-
-        Args:
-            scope: ASGI connection scope.
-            receive: ASGI receive callable.
-            send: ASGI send callable.
-        """
-        if self.api_key and scope.get("type") == "http" and scope.get("path") != "/health":
-            headers = {key.decode().lower(): value.decode() for key, value in scope["headers"]}
-            provided_key = headers.get("x-api-key", "")
-            if not compare_digest(provided_key, self.api_key):
-                response = JSONResponse(
-                    {"detail": "Invalid or missing API key"},
-                    status_code=403,
-                )
-                await response(scope, receive, send)
-                return
-
-        await self.app(scope, receive, send)
 
 
 @yfinance_server.tool(
@@ -464,6 +430,29 @@ async def get_recommendations(ticker: str, recommendation_type: str, months_back
         return f"Error: getting recommendations for {ticker}: {e}"
 
 
+def build_app(authenticator: CallerAuthenticator | None = None) -> CallerAuthMiddleware:
+    """Builds the Streamable HTTP app behind caller authentication.
+
+    Every route except ``/health`` needs a Descope M2M token (``DESCOPE_M2M_PROJECT_ID``) or the legacy
+    ``x-api-key`` (``API_KEY``). With neither configured, protected routes answer 503. Tokens must be issued for
+    this service: ``K_SERVICE`` on Cloud Run, else ``DESCOPE_M2M_AUDIENCE``.
+
+    Args:
+        authenticator: Overrides the authenticator built from the environment (tests).
+
+    Returns:
+        The wrapped ASGI app.
+
+    Raises:
+        ValueError: If ``DESCOPE_M2M_PROJECT_ID`` is set but no audience is.
+    """
+    return CallerAuthMiddleware(
+        yfinance_server.streamable_http_app(),
+        authenticator or CallerAuthenticator.from_env(allowed_envs=("staging", "prod"), static_key_env="API_KEY"),
+        exempt_paths={"/health"},
+    )
+
+
 def main() -> None:
     """Runs the Yahoo Finance MCP server over Streamable HTTP."""
     print(
@@ -472,10 +461,10 @@ def main() -> None:
         f"{yfinance_server.settings.streamable_http_path}"
     )
 
-    app = yfinance_server.streamable_http_app()
-    api_key = os.getenv("API_KEY", "")
-    if api_key:
-        app = APIKeyMiddleware(app, api_key)
+    app = build_app()
+    if not app.authenticator.configured:
+        # Refuse to start rather than pass /health while answering 503 on every /mcp call.
+        raise SystemExit("caller auth unconfigured: set API_KEY and/or DESCOPE_M2M_PROJECT_ID")
 
     import uvicorn
 

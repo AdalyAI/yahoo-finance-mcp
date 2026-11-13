@@ -110,6 +110,24 @@ uvx --from git+https://github.com/Alex2Yang97/yahoo-finance-mcp yahoo-finance-mc
    uv pip install -e .
    ```
 
+### Adaly fork: the private `adaly-python` index
+
+This fork depends on `adaly-m2m-auth` (caller auth), which comes only from Adaly's `adaly-python` Artifact Registry
+repo (`[tool.uv.index]` in `pyproject.toml`). Installing or syncing therefore needs a Google access token from an
+account with `artifactregistry.reader` on that repo:
+
+```bash
+export UV_INDEX_ADALY_PYTHON_USERNAME=oauth2accesstoken
+export UV_INDEX_ADALY_PYTHON_PASSWORD="$(gcloud auth print-access-token)"
+uv sync
+```
+
+The image is built by Cloud Build (`gcloud run deploy --source`), which reads the token from its own identity via
+the metadata server; Cloud Build's Docker builder has no BuildKit, so there is no secret mount. A plain local
+`docker build` therefore fails at that step. Run locally with `uv run server.py` (set `API_KEY` or
+`DESCOPE_M2M_PROJECT_ID`, or it refuses to start), or build in Cloud Build with
+`gcloud builds submit --project adaly-platform`.
+
 ## Usage
 
 ### Quick Start

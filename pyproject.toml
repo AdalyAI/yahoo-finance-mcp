@@ -11,6 +11,7 @@ requires-python = ">=3.11"
 dependencies = [
     "mcp[cli]>=1.27.0,<2",
     "yfinance>=0.2.62",
+    "adaly-m2m-auth==0.1.0",
 ]
 
 #: setup script entry point (server.py)
@@ -22,7 +23,19 @@ dev = [
     "pre-commit>=3.6.0",
     "black>=24.2.0",
     "isort>=5.13.2",
+    "pytest>=8",
+    "httpx>=0.27",
 ]
+
+# Internal packages come only from the adaly-python Artifact Registry repo (explicit: nothing else is looked up
+# there, and these names are never looked up on PyPI). Credentials: see the Dockerfile.
+[[tool.uv.index]]
+name = "adaly-python"
+url = "https://us-east4-python.pkg.dev/adaly-platform/adaly-python/simple/"
+explicit = true
+
+[tool.uv.sources]
+adaly-m2m-auth = { index = "adaly-python" }
 
 [tool.hatch.build.targets.wheel]
 only-include = ["server.py"]
