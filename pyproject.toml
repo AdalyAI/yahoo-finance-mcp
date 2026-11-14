@@ -11,7 +11,7 @@ requires-python = ">=3.11"
 dependencies = [
     "mcp[cli]>=1.27.0,<2",
     "yfinance>=0.2.62",
-    "adaly-m2m-auth==0.1.0",
+    "adaly-m2m-auth==0.1.2",
 ]
 
 #: setup script entry point (server.py)
