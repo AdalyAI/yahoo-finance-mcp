@@ -444,7 +444,7 @@ def build_app(authenticator: CallerAuthenticator | None = None) -> CallerAuthMid
         The wrapped ASGI app.
 
     Raises:
-        ValueError: If ``DESCOPE_M2M_PROJECT_ID`` is set but no audience is.
+        ValueError: If ``DESCOPE_M2M_PROJECT_ID`` is set but no audience is, or ``API_KEY`` isn't valid UTF-8 text.
     """
     return CallerAuthMiddleware(
         yfinance_server.streamable_http_app(),

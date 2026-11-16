@@ -15,7 +15,7 @@ COPY pyproject.toml uv.lock ./
 RUN export UV_INDEX_ADALY_PYTHON_USERNAME=oauth2accesstoken \
     && UV_INDEX_ADALY_PYTHON_PASSWORD="$(python -c 'import json,urllib.request as u; r=u.Request("http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token", headers={"Metadata-Flavor": "Google"}); print(json.load(u.urlopen(r, timeout=5))["access_token"])')" \
     && export UV_INDEX_ADALY_PYTHON_PASSWORD \
-    && uv sync --frozen --no-dev --no-install-project
+    && uv sync --locked --no-dev --no-install-project
 
 COPY . .
 RUN uv sync --frozen --no-dev \
